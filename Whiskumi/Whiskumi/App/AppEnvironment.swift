@@ -116,7 +116,7 @@ final class AppEnvironment {
 
     private func settingChanged(_ key: AppSettings.Key) {
         switch key {
-        case .windowLayer, .showOnAllDesktops, .catScale, .renderQuality, .visualEffects, .groundShadow,
+        case .windowLayer, .showOnAllDesktops, .catSize, .renderQuality, .visualEffects, .groundShadow,
              .animationSpeed, .randomActivities, .autonomousMovement:
             cat.applySettings()
         case .showMenuBarIcon:

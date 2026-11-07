@@ -318,6 +318,66 @@ struct SpriteLibraryTests {
     }
 }
 
+// MARK: - Pixel-art scaling
+
+struct PixelScaleTests {
+    @Test func defaultIsFourDevicePixelsPerThreeArtPixelsOnRetina() {
+        let ppp = PixelScale.pointsPerPixel(size: 1, quality: .pixelPerfect, backingScale: 2)
+        #expect(abs(ppp - 2.0 / 3.0) < 0.000_001)
+        #expect(abs(ppp * 2 - 4.0 / 3.0) < 0.000_001)
+    }
+
+    @Test func defaultIsAboutThirtyPercentSmallerThanBefore() throws {
+        let library = try SpriteLibrary(bundle: .main)
+        let ppp = PixelScale.pointsPerPixel(size: 1, quality: .pixelPerfect, backingScale: 2)
+        let height = library.standingHeight * ppp
+        let before = library.standingHeight * 1.0
+        #expect((80...90).contains(height), "cat is \(height) pt tall")
+        #expect((0.28...0.38).contains(1 - height / before))
+    }
+
+    @Test func pixelPerfectOnlyUsesCrispRatiosAndNeverDropsPixels() {
+        for backing: CGFloat in [1, 2, 3] {
+            for size in stride(from: AppSettings.sizeRange.lowerBound, through: AppSettings.sizeRange.upperBound, by: 0.05) {
+                let ratio = PixelScale.pointsPerPixel(size: size, quality: .pixelPerfect, backingScale: backing) * backing
+                #expect(PixelScale.crispRatios.contains { abs($0 - ratio) < 0.000_001 }, "ratio \(ratio)")
+                #expect(ratio >= 1)
+            }
+        }
+    }
+
+    @Test func sharpAndSmoothUseTheExactRequestedSize() {
+        #expect(abs(PixelScale.pointsPerPixel(size: 1.1, quality: .sharp, backingScale: 2) - 2.0 / 3.0 * 1.1) < 0.000_001)
+        #expect(abs(PixelScale.pointsPerPixel(size: 0.9, quality: .smooth, backingScale: 2) - 2.0 / 3.0 * 0.9) < 0.000_001)
+    }
+
+    @Test func everySpriteLandsOnWholeDevicePixels() throws {
+        let library = try SpriteLibrary(bundle: .main)
+        for size in [1.0, 1.25, 1.5, 2.25] {
+            let grid = PixelGrid(backingScale: 2, pointsPerPixel: PixelScale.pointsPerPixel(size: size, quality: .pixelPerfect, backingScale: 2))
+            for animation in CatAnimation.allCases {
+                let data = try #require(library.animation(animation))
+                for flipped in [false, true] {
+                    for foot in [CGPoint(x: 159, y: 18), CGPoint(x: 160.5, y: 18.5)] {
+                        let frame = grid.spriteFrame(canvas: data.size, anchor: data.anchor, flipped: flipped, foot: foot)
+                        #expect([frame.minX, frame.minY, frame.width, frame.height].allSatisfy(grid.isAligned), "\(animation) \(frame)")
+                        // The anchor (head centre, ground line) stays on the feet within a device pixel.
+                        let anchorX = flipped ? frame.maxX - grid.length(data.anchor.x) : frame.minX + grid.length(data.anchor.x)
+                        #expect(abs(anchorX - foot.x) <= 0.5)
+                        // Proportions are preserved to within a device pixel.
+                        #expect(abs(frame.width / frame.height - data.size.width / data.size.height) < 0.02)
+                    }
+                }
+                for emote in data.emotes {
+                    let sprite = grid.spriteFrame(canvas: data.size, anchor: data.anchor, flipped: true, foot: CGPoint(x: 159, y: 18))
+                    let prop = grid.propFrame(origin: emote.origin, size: CGSize(width: 20, height: 21), onSprite: sprite, flipped: true)
+                    #expect([prop.minX, prop.minY, prop.width, prop.height].allSatisfy(grid.isAligned))
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Settings
 
 @MainActor
@@ -331,18 +391,18 @@ struct AppSettingsTests {
         let settings = AppSettings(defaults: makeDefaults())
         #expect(settings.soundEffects == false)
         #expect(settings.notificationsEnabled == false)
-        #expect(settings.catScale == 1)
+        #expect(settings.catSize == 1)
         #expect(settings.matchingPreset == .balanced)
     }
 
     @Test func changesPersistAcrossInstances() {
         let defaults = makeDefaults()
         let settings = AppSettings(defaults: defaults)
-        settings.catScale = 1.5
+        settings.catSize = 1.5
         settings.windowLayer = .desktop
         settings.cursorReactions = false
         let reloaded = AppSettings(defaults: defaults)
-        #expect(reloaded.catScale == 1.5)
+        #expect(reloaded.catSize == 1.5)
         #expect(reloaded.windowLayer == .desktop)
         #expect(reloaded.cursorReactions == false)
     }
@@ -353,6 +413,21 @@ struct AppSettingsTests {
         settings.addObserver { heard.append($0) }
         settings.sleepFrequency = 0.9
         #expect(heard == [.sleepFrequency])
+    }
+
+    @Test func legacyDefaultSizeMovesToTheNewSmallerDefault() {
+        let defaults = makeDefaults()
+        defaults.set(1.0, forKey: "catScale")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.catSize == 1)
+        #expect(defaults.object(forKey: "catScale") == nil)
+    }
+
+    @Test func legacyCustomSizeKeepsItsOnScreenSize() {
+        let defaults = makeDefaults()
+        defaults.set(1.5, forKey: "catScale") // 1.5 pt per art pixel
+        let settings = AppSettings(defaults: defaults)
+        #expect(abs(settings.catSize * Double(PixelScale.basePointsPerPixel) - 1.5) < 0.0001)
     }
 
     @Test func presetsApplyAndAreRecognised() {

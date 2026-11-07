@@ -27,9 +27,9 @@ struct MenuBarPopover: View {
                                        startPoint: .top, endPoint: .bottom)
                     )
                 CatPreviewView(cat: cat)
-                    .padding(8)
             }
-            .frame(width: 92, height: 82)
+            .frame(width: 112, height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Whiskumi")

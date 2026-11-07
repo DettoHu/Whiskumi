@@ -9,7 +9,7 @@ final class DesktopWindowManager {
     let clock = FrameClock()
 
     private let library: SpriteLibrary
-    private var requestedScale: Double = 1
+    private var requestedSize: Double = 1
     private var renderQuality: RenderQuality = .pixelPerfect
     private var footInWindow: CGPoint = .zero
     private var backingObserver: NSObjectProtocol?
@@ -63,20 +63,21 @@ final class DesktopWindowManager {
         catView.renderQuality = settings.renderQuality
         catView.effectsEnabled = settings.visualEffects
         catView.shadowEnabled = settings.groundShadow
-        if !hasLayout || requestedScale != settings.catScale || renderQuality != settings.renderQuality {
-            requestedScale = settings.catScale
+        if !hasLayout || requestedSize != settings.catSize || renderQuality != settings.renderQuality {
+            requestedSize = settings.catSize
             renderQuality = settings.renderQuality
             recomputeLayout()
         }
     }
 
-    /// Screen points per art pixel. "Pixel Perfect" snaps to whole device pixels so no art pixel is split.
+    var backingScale: CGFloat {
+        let scale = window.screen?.backingScaleFactor ?? screens.nearestScreen(to: foot)?.backingScaleFactor ?? 2
+        return scale > 0 ? scale : 2
+    }
+
+    /// Screen points per art pixel for the chosen size; "Pixel Perfect" snaps to an even device-pixel ratio.
     private func effectivePointsPerPixel() -> CGFloat {
-        let base = CGFloat(requestedScale)
-        guard renderQuality == .pixelPerfect else { return base }
-        let backing = window.screen?.backingScaleFactor ?? screens.nearestScreen(to: foot)?.backingScaleFactor ?? 2
-        let devicePixels = max(1, (base * backing).rounded())
-        return devicePixels / backing
+        PixelScale.pointsPerPixel(size: requestedSize, quality: renderQuality, backingScale: backingScale)
     }
 
     func recomputeLayout() {

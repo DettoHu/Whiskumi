@@ -19,8 +19,7 @@ final class BallToy {
     private(set) var isHeld = false
     private(set) var lastTouched = Date()
     private var physicsID: UUID?
-    private var rolled: CGFloat = 0
-    private var quarterTurns = 0
+    private var travelling: Facing = .right
 
     var onThrown: (() -> Void)?
     var onPoked: (() -> Void)?
@@ -35,7 +34,7 @@ final class BallToy {
         imageSize = CGSize(width: image.width, height: image.height)
         let side = ceil(max(imageSize.width, imageSize.height) * pointsPerPixel) + 4
         window = TransparentPanel(contentRect: NSRect(x: 0, y: 0, width: side, height: side))
-        view = BallView(image: image, renderQuality: renderQuality)
+        view = BallView(image: image, renderQuality: renderQuality, pointsPerPixel: pointsPerPixel)
         view.frame = NSRect(x: 0, y: 0, width: side, height: side)
         window.contentView = view
         view.toy = self
@@ -132,7 +131,7 @@ final class BallToy {
             }
             velocity.dx *= CGFloat(exp(-2.4 * dt))
         }
-        roll(by: velocity.dx * t)
+        faceTravelDirection()
         moveWindow()
         if grounded && abs(velocity.dx) < 6 {
             velocity = .zero
@@ -141,14 +140,13 @@ final class BallToy {
         return true
     }
 
-    /// Rolling is shown in quarter turns, which rotate pixel art without resampling it.
-    private func roll(by distance: CGFloat) {
-        rolled += distance
-        let quarter = .pi * diameter / 4
-        let turns = Int((rolled / quarter).rounded(.towardZero))
-        if turns != quarterTurns {
-            quarterTurns = turns
-            view.setQuarterTurns(-turns)
+    /// The art draws motion lines trailing the ball; mirror it (losslessly) so they trail its travel.
+    private func faceTravelDirection() {
+        guard abs(velocity.dx) > 20 else { return }
+        let direction: Facing = velocity.dx > 0 ? .right : .left
+        if direction != travelling {
+            travelling = direction
+            view.setMirrored(direction == .left)
         }
     }
 
@@ -217,15 +215,16 @@ final class BallView: NSView {
     weak var toy: BallToy?
     private let ballLayer = CALayer()
     private let image: CGImage
+    private let pointsPerPixel: CGFloat
 
-    init(image: CGImage, renderQuality: RenderQuality) {
+    init(image: CGImage, renderQuality: RenderQuality, pointsPerPixel: CGFloat) {
         self.image = image
+        self.pointsPerPixel = pointsPerPixel
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = .clear
         ballLayer.contents = image
-        ballLayer.magnificationFilter = renderQuality == .smooth ? .linear : .nearest
-        ballLayer.minificationFilter = renderQuality == .smooth ? .trilinear : .nearest
+        ballLayer.configureForPixelArt(renderQuality)
         ballLayer.actions = ["transform": NSNull(), "bounds": NSNull(), "position": NSNull()]
         layer?.addSublayer(ballLayer)
     }
@@ -235,13 +234,18 @@ final class BallView: NSView {
 
     override func layout() {
         super.layout()
-        let scale = (bounds.width - 4) / CGFloat(max(image.width, image.height))
-        ballLayer.bounds = CGRect(x: 0, y: 0, width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale)
-        ballLayer.position = CGPoint(x: bounds.midX, y: 2 + ballLayer.bounds.height / 2)
+        // Same art-pixel scale as the cat, on whole device pixels.
+        let grid = PixelGrid(backingScale: window?.backingScaleFactor ?? 2, pointsPerPixel: pointsPerPixel)
+        let width = grid.length(CGFloat(image.width))
+        let height = grid.length(CGFloat(image.height))
+        let originX = grid.snap((bounds.width - width) / 2)
+        ballLayer.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        ballLayer.position = CGPoint(x: originX + width / 2, y: 2 + height / 2)
     }
 
-    func setQuarterTurns(_ turns: Int) {
-        ballLayer.setAffineTransform(CGAffineTransform(rotationAngle: CGFloat(turns) * .pi / 2))
+    /// Mirroring about the centre keeps the aligned frame in place.
+    func setMirrored(_ mirrored: Bool) {
+        ballLayer.setAffineTransform(mirrored ? CGAffineTransform(scaleX: -1, y: 1) : .identity)
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

@@ -1,16 +1,37 @@
+import AppKit
 import SwiftUI
 
 struct AppearanceSettingsView: View {
     let settings: AppSettings
+    /// Height of the sitting cat in art pixels.
+    let standingHeight: CGFloat
+
+    private var backingScale: CGFloat { NSScreen.main?.backingScaleFactor ?? 2 }
+
+    /// The size actually used on screen, after Pixel Perfect snapping.
+    private var effectivePointsPerPixel: CGFloat {
+        PixelScale.pointsPerPixel(size: settings.catSize, quality: settings.renderQuality, backingScale: backingScale)
+    }
+
+    private var sizeDescription: String {
+        let percent = Int((effectivePointsPerPixel / PixelScale.basePointsPerPixel * 100).rounded())
+        let points = Int((standingHeight * effectivePointsPerPixel).rounded())
+        return "\(percent)% · \(points) pt tall"
+    }
 
     var body: some View {
         @Bindable var settings = settings
         SettingsPane {
             Section("Size") {
-                LabeledSlider(title: "Cat size", value: $settings.catScale, range: AppSettings.scaleRange,
-                              low: "Small", high: "Large", valueText: "\(Int((settings.catScale * 100).rounded()))%")
-                if settings.renderQuality == .pixelPerfect {
-                    SettingCaption("Pixel Perfect rendering rounds the size to the nearest crisp step for your display.")
+                LabeledSlider(title: "Cat size", value: $settings.catSize, range: AppSettings.sizeRange,
+                              low: "Small", high: "Large", valueText: sizeDescription)
+                HStack {
+                    SettingCaption(settings.renderQuality == .pixelPerfect
+                                   ? "Pixel Perfect moves in crisp steps so every art pixel lands on whole screen pixels."
+                                   : "Sizes between the crisp steps make some art pixels one screen pixel wider than others.")
+                    Spacer()
+                    Button("Default Size") { settings.catSize = 1 }
+                        .disabled(abs(settings.catSize - 1) < 0.001)
                 }
             }
 

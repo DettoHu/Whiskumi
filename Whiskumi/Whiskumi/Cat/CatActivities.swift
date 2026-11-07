@@ -182,8 +182,7 @@ extension CatController {
                     prop,
                     offset: CGPoint(x: head.x + 8 + CGFloat(i) * 5, y: head.y + 2 + CGFloat(i) * 7),
                     drift: CGVector(dx: 12 + CGFloat(i) * 3, dy: 24 + CGFloat(i) * 4),
-                    duration: 2.6,
-                    scale: (0.7, 1.15)
+                    duration: 2.6
                 )
                 try await Task.sleep(for: .seconds(1.05))
             }

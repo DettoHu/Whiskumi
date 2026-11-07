@@ -21,7 +21,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         tabs.transitionOptions = [.crossfade, .allowUserInteraction]
         let d = dependencies
         tabs.addTabViewItem(Self.tab("General", symbol: "gearshape", GeneralSettingsView(dependencies: d)))
-        tabs.addTabViewItem(Self.tab("Appearance", symbol: "paintpalette", AppearanceSettingsView(settings: d.settings)))
+        tabs.addTabViewItem(Self.tab("Appearance", symbol: "paintpalette", AppearanceSettingsView(settings: d.settings, standingHeight: d.cat.library.standingHeight)))
         tabs.addTabViewItem(Self.tab("Behavior", symbol: "pawprint", BehaviorSettingsView(settings: d.settings, cat: d.cat)))
         tabs.addTabViewItem(Self.tab("Sound", symbol: "speaker.wave.2", SoundSettingsView(settings: d.settings, audio: d.audio)))
         tabs.addTabViewItem(Self.tab("Notifications", symbol: "bell.badge", NotificationSettingsView(settings: d.settings, notifications: d.notifications)))

@@ -13,6 +13,8 @@ enum ActivityPriority: Int, Comparable {
 struct PreviewFrame {
     let image: CGImage
     let flipped: Bool
+    /// Head-centre x and ground line y in canvas pixels (top-left origin).
+    let anchor: CGPoint
 }
 
 /// Whiskumi's brain. It owns the needs/personality model and runs exactly one
@@ -97,7 +99,7 @@ final class CatController {
         animator.renderer = windows.catView
         animator.speed = settings.animationSpeed
         animator.onFrameChange = { [weak self] data, frame, facing in
-            self?.preview = PreviewFrame(image: data.frame(at: frame).image, flipped: facing != data.facing)
+            self?.preview = PreviewFrame(image: data.frame(at: frame).image, flipped: facing != data.facing, anchor: data.anchor)
         }
         if isFirstLaunch { save() }
     }

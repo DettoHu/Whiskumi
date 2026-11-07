@@ -32,9 +32,9 @@ nonisolated enum RenderQuality: String, CaseIterable, Identifiable, Sendable {
     }
     var detail: String {
         switch self {
-        case .pixelPerfect: "Snaps the size so every art pixel maps to whole screen pixels."
-        case .sharp: "Crisp pixels at any size."
-        case .smooth: "Softens pixel edges."
+        case .pixelPerfect: "Nearest-neighbour pixels at sizes where they map evenly onto your screen."
+        case .sharp: "Nearest-neighbour pixels at exactly the size you choose."
+        case .smooth: "Blends neighbouring pixels for a softer look (no mipmapping)."
         }
     }
 }
@@ -78,7 +78,7 @@ nonisolated enum BehaviorPreset: String, CaseIterable, Identifiable, Sendable {
 final class AppSettings {
     enum Key: String, CaseIterable {
         case showCatOnLaunch, windowLayer, showOnAllDesktops, restorePosition, showMenuBarIcon
-        case catScale, animationSpeed, renderQuality, visualEffects, groundShadow, defaultPosition
+        case catSize, animationSpeed, renderQuality, visualEffects, groundShadow, defaultPosition
         case activityFrequency, walkingFrequency, sleepFrequency, randomActivities, cursorReactions, autonomousMovement
         case masterVolume, soundEffects, meowing, interactionSounds
         case notificationsEnabled, feedingReminders, waterReminders
@@ -96,7 +96,8 @@ final class AppSettings {
     var showMenuBarIcon: Bool { didSet { changed(.showMenuBarIcon, showMenuBarIcon) } }
 
     // Appearance
-    var catScale: Double { didSet { changed(.catScale, catScale) } }
+    /// Relative cat size; 1.0 (100 %) is the default size of about 85 pt. See `PixelScale`.
+    var catSize: Double { didSet { changed(.catSize, catSize) } }
     var animationSpeed: Double { didSet { changed(.animationSpeed, animationSpeed) } }
     var renderQuality: RenderQuality { didSet { changed(.renderQuality, renderQuality.rawValue) } }
     var visualEffects: Bool { didSet { changed(.visualEffects, visualEffects) } }
@@ -122,18 +123,20 @@ final class AppSettings {
     var feedingReminders: Bool { didSet { changed(.feedingReminders, feedingReminders) } }
     var waterReminders: Bool { didSet { changed(.waterReminders, waterReminders) } }
 
-    static let scaleRange: ClosedRange<Double> = 0.5...2.0
+    /// 75 % is one device pixel per art pixel on Retina, the smallest size that never drops pixels.
+    static let sizeRange: ClosedRange<Double> = 0.75...3.0
     static let speedRange: ClosedRange<Double> = 0.5...1.5
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        Self.migrateLegacySize(in: defaults)
         defaults.register(defaults: [
             Key.showCatOnLaunch.rawValue: true,
             Key.windowLayer.rawValue: WindowLayer.aboveAll.rawValue,
             Key.showOnAllDesktops.rawValue: true,
             Key.restorePosition.rawValue: true,
             Key.showMenuBarIcon.rawValue: true,
-            Key.catScale.rawValue: 1.0,
+            Key.catSize.rawValue: 1.0,
             Key.animationSpeed.rawValue: 1.0,
             Key.renderQuality.rawValue: RenderQuality.pixelPerfect.rawValue,
             Key.visualEffects.rawValue: true,
@@ -158,7 +161,7 @@ final class AppSettings {
         showOnAllDesktops = defaults.bool(forKey: Key.showOnAllDesktops.rawValue)
         restorePosition = defaults.bool(forKey: Key.restorePosition.rawValue)
         showMenuBarIcon = defaults.bool(forKey: Key.showMenuBarIcon.rawValue)
-        catScale = defaults.double(forKey: Key.catScale.rawValue).clamped(to: Self.scaleRange)
+        catSize = defaults.double(forKey: Key.catSize.rawValue).clamped(to: Self.sizeRange)
         animationSpeed = defaults.double(forKey: Key.animationSpeed.rawValue).clamped(to: Self.speedRange)
         renderQuality = RenderQuality(rawValue: defaults.string(forKey: Key.renderQuality.rawValue) ?? "") ?? .pixelPerfect
         visualEffects = defaults.bool(forKey: Key.visualEffects.rawValue)
@@ -178,6 +181,20 @@ final class AppSettings {
         feedingReminders = defaults.bool(forKey: Key.feedingReminders.rawValue)
         waterReminders = defaults.bool(forKey: Key.waterReminders.rawValue)
         isLoading = false
+    }
+
+    /// Earlier versions stored `catScale` in absolute points per art pixel, with 1.0 as the
+    /// default. An untouched default moves to the new, smaller default; a customised size keeps
+    /// its on-screen size.
+    static func migrateLegacySize(in defaults: UserDefaults) {
+        let legacyKey = "catScale"
+        guard let legacy = defaults.object(forKey: legacyKey) as? Double else { return }
+        // The legacy key is removed once migrated, so its presence means this hasn't run yet.
+        if abs(legacy - 1) > 0.01 {
+            let size = (legacy / Double(PixelScale.basePointsPerPixel)).clamped(to: sizeRange)
+            defaults.set(size, forKey: Key.catSize.rawValue)
+        }
+        defaults.removeObject(forKey: legacyKey)
     }
 
     /// Registers a change handler; returns a token for `removeObserver`.
@@ -234,7 +251,7 @@ final class AppSettings {
         showOnAllDesktops = fresh.showOnAllDesktops
         restorePosition = fresh.restorePosition
         showMenuBarIcon = fresh.showMenuBarIcon
-        catScale = fresh.catScale
+        catSize = fresh.catSize
         animationSpeed = fresh.animationSpeed
         renderQuality = fresh.renderQuality
         visualEffects = fresh.visualEffects

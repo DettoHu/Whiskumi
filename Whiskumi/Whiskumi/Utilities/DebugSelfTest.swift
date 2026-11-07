@@ -115,6 +115,100 @@ enum DebugSelfTest {
             }
         }
 
+        // MARK: Pixel grid
+
+        /// Every sprite, effect and the shadow must sit on whole device pixels, use nearest-neighbour
+        /// sampling without mipmaps, and effects must move in whole-pixel steps.
+        func verifyPixelGrid() async {
+            let view = windows.catView
+            let grid = view.grid
+            let backing = grid.backingScale
+            log("pixel grid: backing \(backing)x, \(grid.pointsPerPixel) pt per art pixel = \(grid.pointsPerPixel * backing) device px per art pixel")
+            if backing == 2, env.settings.catSize == 1, env.settings.renderQuality == .pixelPerfect {
+                check(abs(grid.pointsPerPixel - 2.0 / 3.0) < 0.0001, "default size is 4 device px per 3 art px on Retina")
+            }
+            let height = env.library.standingHeight * grid.pointsPerPixel
+            log("sitting cat height: \(String(format: "%.1f", height)) pt = \(Int((height * backing).rounded())) device px")
+            if env.settings.catSize == 1 { check((80...90).contains(height), "default cat is ~85 pt tall") }
+
+            cat.cancelActivity()
+            var misaligned: [String] = []
+            for animation in CatAnimation.allCases {
+                guard let data = env.library.animation(animation) else { continue }
+                for facing in [Facing.right, .left] {
+                    for lift in [0, 7.3, 12.9] as [CGFloat] {
+                        cat.animator.facing = facing
+                        view.lift = lift
+                        cat.animator.show(animation, frame: data.frames.count - 1)
+                        let f = view.spriteFrame
+                        if ![f.minX, f.minY, f.width, f.height].allSatisfy(grid.isAligned) {
+                            misaligned.append("\(animation.rawValue)/\(facing.rawValue)/lift \(lift): \(f)")
+                        }
+                        for layer in view.pixelArtLayers where layer.opacity > 0 || layer.superlayer != nil {
+                            let lf = layer.frame
+                            if ![lf.minX, lf.minY, lf.width, lf.height].allSatisfy(grid.isAligned) {
+                                misaligned.append("\(animation.rawValue) effect layer \(lf)")
+                            }
+                        }
+                    }
+                }
+            }
+            view.lift = 0
+            misaligned.prefix(5).forEach { log("  misaligned: \($0)") }
+            check(misaligned.isEmpty, "all \(CatAnimation.allCases.count) animations, both facings, lifted or not, sit on whole device pixels")
+
+            let layers = view.pixelArtLayers
+            check(layers.allSatisfy { $0.magnificationFilter == .nearest && $0.minificationFilter == .nearest },
+                  "nearest-neighbour magnification and minification on every pixel-art layer")
+            check(layers.allSatisfy { $0.minificationFilter != .trilinear && !$0.allowsEdgeAntialiasing && !$0.shouldRasterize },
+                  "no mipmaps, edge antialiasing or rasterisation")
+
+            // Effects: a pose with emotes, plus particles.
+            cat.animator.facing = .left
+            cat.animator.show(.happy)
+            cat.emitHearts(count: 1)
+            view.emitParticle("zSmall", offset: CGPoint(x: 10, y: 90), drift: CGVector(dx: 12, dy: 24), duration: 2)
+            await wait(0.4)
+            var steppedOnly = true
+            var scaled = false
+            for layer in view.pixelArtLayers {
+                for key in layer.animationKeys() ?? [] {
+                    guard let animation = layer.animation(forKey: key) else { continue }
+                    let parts = (animation as? CAAnimationGroup)?.animations ?? [animation]
+                    for part in parts {
+                        guard let property = part as? CAPropertyAnimation else { continue }
+                        if property.keyPath?.contains("scale") == true || property.keyPath?.contains("transform") == true { scaled = true }
+                        if property.keyPath?.hasPrefix("position") == true {
+                            let keyframes = property as? CAKeyframeAnimation
+                            if keyframes?.calculationMode != .discrete {
+                                steppedOnly = false
+                                log("  continuous \(property.keyPath ?? "") on \(key) (\(type(of: property)))")
+                            }
+                            // Values are layer centres; the resulting frame origin is what must be aligned.
+                            let half = CGSize(width: layer.bounds.width / 2, height: layer.bounds.height / 2)
+                            for value in keyframes?.values ?? [] {
+                                if let number = value as? NSNumber, !grid.isAligned(CGFloat(number.doubleValue) - half.height) {
+                                    steppedOnly = false
+                                    log("  off-grid \(key) y=\(number) half=\(half.height)")
+                                }
+                                if !(value is NSNumber), let point = (value as? NSValue)?.pointValue,
+                                   !(grid.isAligned(point.x - half.width) && grid.isAligned(point.y - half.height)) {
+                                    steppedOnly = false
+                                    log("  off-grid \(key) \(point) half=\(half)")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            check(!scaled, "effects never scale the art")
+            check(steppedOnly, "effects move in discrete whole-pixel steps")
+            snapshotCat("13_effects")
+            cat.animator.facing = .right
+            cat.startLife()
+            await wait(0.5)
+        }
+
         // MARK: Script
 
         func run() async {
@@ -237,6 +331,8 @@ enum DebugSelfTest {
             cat.startLife()
             await wait(1.5)
 
+            await verifyPixelGrid()
+
             // Context menu
             let menu = CatContextMenu.make(for: cat, actions: AppActions(openSettings: {}, toggleCat: {}, quit: {}))
             let titles = menu.items.map(\.title).filter { !$0.isEmpty }
@@ -258,6 +354,9 @@ enum DebugSelfTest {
                 menuBar.togglePopover()
                 await wait(1.0)
                 check(menuBar.isPopoverShown, "popover opens")
+                if !menuBar.isPopoverShown {
+                    log("  status item window frame: \(String(describing: menuBar.statusButtonFrame)) visible screens: \(NSScreen.screens.map(\.frame))")
+                }
                 snapshotView(menuBar.popoverView, "09_popover")
                 menuBar.closePopover()
             }
@@ -280,13 +379,15 @@ enum DebugSelfTest {
             }
 
             // Settings persistence + live application
-            let originalScale = env.settings.catScale
-            env.settings.catScale = 1.5
+            let originalSize = env.settings.catSize
+            env.settings.catSize = 1.5
             await wait(0.3)
-            check(abs(windows.pointsPerPixel - 1.5) < 0.01, "size setting applied live")
-            check(env.defaults.double(forKey: "catScale") == 1.5, "size setting persisted")
+            let expectedLarge = PixelScale.pointsPerPixel(size: 1.5, quality: .pixelPerfect, backingScale: windows.backingScale)
+            check(abs(windows.pointsPerPixel - expectedLarge) < 0.001, "size setting applied live (ppp \(windows.pointsPerPixel))")
+            check(env.defaults.double(forKey: "catSize") == 1.5, "size setting persisted")
             snapshotCat("11_large")
-            env.settings.catScale = originalScale
+            env.settings.catSize = originalSize
+            await wait(0.3)
             env.settings.windowLayer = .desktop
             check(windows.window.level.rawValue < NSWindow.Level.normal.rawValue, "desktop window level applied")
             env.settings.windowLayer = .aboveAll

@@ -11,8 +11,11 @@ protocol DesktopCatViewDelegate: AnyObject {
 }
 
 /// Renders Whiskumi with Core Animation layers: the sprite itself, effect sprites
-/// lifted from the art (hearts, Zs, "?"), and a small pixel shadow. Pixel art is
-/// drawn with nearest-neighbour filtering so it stays crisp on Retina displays.
+/// lifted from the art (hearts, Zs, "?"), and a small pixel shadow.
+///
+/// Everything is laid out on whole device pixels through `PixelGrid` and sampled with
+/// nearest-neighbour filtering, and effects move in whole-pixel steps instead of gliding
+/// or scaling, so the art never gets resampled between pixels.
 final class DesktopCatView: NSView, CatRenderer {
     weak var delegate: DesktopCatViewDelegate?
     let library: SpriteLibrary
@@ -28,8 +31,8 @@ final class DesktopCatView: NSView, CatRenderer {
     /// Where the cat's feet (anchor) sit, in view coordinates.
     var footPoint: CGPoint = .zero { didSet { redisplay() } }
 
-    /// Visual lift of the sprite above its feet position (carrying, hopping).
-    var lift: CGFloat = 0 { didSet { positionSprite(); updateShadow() } }
+    /// Visual lift of the sprite above its feet position (carrying, hopping). Applied in whole device pixels.
+    var lift: CGFloat = 0 { didSet { if grid.snap(lift) != grid.snap(oldValue) { redisplay() } } }
 
     private let spriteLayer = CALayer()
     private let shadowLayer = CALayer()
@@ -42,6 +45,12 @@ final class DesktopCatView: NSView, CatRenderer {
     private(set) var currentData: SpriteAnimationData?
     private(set) var currentFrameIndex = 0
     private(set) var currentFacing: Facing = .right
+    /// The sprite's device-pixel-aligned frame, including lift.
+    private(set) var spriteFrame: CGRect = .zero
+    /// The same frame without lift; effects are placed against it and lifted as a group.
+    private var restingSpriteFrame: CGRect = .zero
+
+    private static let shadowSize = CGSize(width: 64, height: 9)
 
     init(library: SpriteLibrary) {
         self.library = library
@@ -52,7 +61,8 @@ final class DesktopCatView: NSView, CatRenderer {
         root.backgroundColor = .clear
         root.masksToBounds = false
         for sub in [shadowLayer, spriteLayer, emoteLayer, particleLayer] {
-            sub.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull(), "transform": NSNull(), "anchorPoint": NSNull()]
+            sub.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull(), "transform": NSNull(),
+                           "anchorPoint": NSNull(), "opacity": NSNull(), "frame": NSNull()]
             root.addSublayer(sub)
         }
         shadowLayer.contents = Self.makeShadowImage()
@@ -69,9 +79,16 @@ final class DesktopCatView: NSView, CatRenderer {
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
-        let scale = window?.backingScaleFactor ?? 2
-        for sub in [spriteLayer, shadowLayer, emoteLayer, particleLayer] { sub.contentsScale = scale }
+        for sub in [spriteLayer, shadowLayer, emoteLayer, particleLayer] { sub.contentsScale = backingScale }
+        redisplay()
     }
+
+    var backingScale: CGFloat {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        return scale > 0 ? scale : 2
+    }
+
+    var grid: PixelGrid { PixelGrid(backingScale: backingScale, pointsPerPixel: pointsPerPixel) }
 
     // MARK: - CatRenderer
 
@@ -106,31 +123,27 @@ final class DesktopCatView: NSView, CatRenderer {
 
     private func layoutSprite() {
         guard let data = currentData else { return }
-        let ppp = pointsPerPixel
-        spriteLayer.bounds = CGRect(x: 0, y: 0, width: data.size.width * ppp, height: data.size.height * ppp)
-        spriteLayer.anchorPoint = CGPoint(x: data.anchor.x / data.size.width, y: 1 - data.anchor.y / data.size.height)
+        let grid = grid
+        let foot = CGPoint(x: grid.snap(footPoint.x), y: grid.snap(footPoint.y))
+        let lifted = grid.snap(lift)
+        restingSpriteFrame = grid.spriteFrame(canvas: data.size, anchor: data.anchor, flipped: isFlippedHorizontally, foot: foot)
+        spriteFrame = restingSpriteFrame.offsetBy(dx: 0, dy: lifted)
+        spriteLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        spriteLayer.bounds = CGRect(origin: .zero, size: spriteFrame.size)
+        spriteLayer.position = CGPoint(x: spriteFrame.midX, y: spriteFrame.midY)
+        // Mirroring about the centre keeps the (already aligned) frame exactly where it is.
         spriteLayer.setAffineTransform(isFlippedHorizontally ? CGAffineTransform(scaleX: -1, y: 1) : .identity)
-        positionSprite()
+        emoteLayer.frame = bounds
+        emoteLayer.setAffineTransform(CGAffineTransform(translationX: 0, y: lifted))
+        particleLayer.frame = bounds
         updateShadow()
     }
 
-    private func positionSprite() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        spriteLayer.position = CGPoint(x: footPoint.x, y: footPoint.y + lift)
-        emoteLayer.frame = bounds
-        emoteLayer.setAffineTransform(CGAffineTransform(translationX: 0, y: lift))
-        particleLayer.frame = bounds
-        CATransaction.commit()
-    }
-
     private func applyFilters() {
-        let filter: CALayerContentsFilter = renderQuality == .smooth ? .linear : .nearest
-        for sub in [spriteLayer, shadowLayer] {
-            sub.magnificationFilter = filter
-            sub.minificationFilter = renderQuality == .smooth ? .trilinear : .nearest
+        for sub in [spriteLayer, shadowLayer, emoteLayer, particleLayer] { sub.configureForPixelArt(renderQuality) }
+        for sub in emoteSublayers + framePropSublayers + (particleLayer.sublayers ?? []) {
+            sub.configureForPixelArt(renderQuality)
         }
-        for sub in emoteSublayers { sub.magnificationFilter = filter }
     }
 
     // MARK: - Emotes and particles
@@ -140,28 +153,46 @@ final class DesktopCatView: NSView, CatRenderer {
         emoteSublayers.removeAll()
     }
 
-    /// Effects drawn in the source art, placed exactly where the artist put them, with a little pop.
+    /// Effects drawn in the source art, placed exactly where the artist put them. They pop in
+    /// with a two-step hop and bob in whole pixels — stepped like the sprite, never scaled.
     private func presentEmotes(for data: SpriteAnimationData) {
+        let grid = grid
+        let step = max(grid.length(3), 1 / backingScale)
         for (i, placement) in data.emotes.enumerated() {
             guard let image = library.prop(placement.prop) else { continue }
-            let frame = propFrame(origin: placement.origin, size: CGSize(width: image.width, height: image.height), in: data)
+            let frame = grid.propFrame(origin: placement.origin, size: CGSize(width: image.width, height: image.height),
+                                       onSprite: restingSpriteFrame, flipped: isFlippedHorizontally)
             let sub = makeSpriteLayer(image: image, frame: frame)
             emoteLayer.addSublayer(sub)
             emoteSublayers.append(sub)
-            let pop = CAKeyframeAnimation(keyPath: "transform.scale")
-            pop.values = [0.2, 1.18, 0.95, 1.0]
-            pop.keyTimes = [0, 0.55, 0.8, 1]
-            pop.duration = 0.32
-            pop.beginTime = CACurrentMediaTime() + Double(i) * 0.08
+            let y = sub.position.y
+            let start = CACurrentMediaTime() + Double(i) * 0.08
+
+            let appear = CAKeyframeAnimation(keyPath: "opacity")
+            appear.values = [0, 1]
+            appear.keyTimes = [0, 0.5]
+            appear.calculationMode = .discrete
+            appear.duration = 0.1
+            appear.beginTime = start
+            appear.fillMode = .backwards
+            sub.add(appear, forKey: "appear")
+
+            let pop = CAKeyframeAnimation(keyPath: "position.y")
+            pop.values = [y - step, y + step, y]
+            pop.keyTimes = [0, 0.4, 0.75]
+            pop.calculationMode = .discrete
+            pop.duration = 0.3
+            pop.beginTime = start
             pop.fillMode = .backwards
             sub.add(pop, forKey: "pop")
-            let bob = CABasicAnimation(keyPath: "position.y")
-            bob.byValue = 2 * pointsPerPixel
-            bob.duration = 0.6
-            bob.autoreverses = true
+
+            let bob = CAKeyframeAnimation(keyPath: "position.y")
+            bob.values = [y, y + step]
+            bob.keyTimes = [0, 0.5]
+            bob.calculationMode = .discrete
+            bob.duration = 1.0
             bob.repeatCount = .infinity
-            bob.beginTime = CACurrentMediaTime() + 0.35 + Double(i) * 0.15
-            bob.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            bob.beginTime = start + 0.35 + Double(i) * 0.15
             sub.add(bob, forKey: "bob")
         }
     }
@@ -174,58 +205,63 @@ final class DesktopCatView: NSView, CatRenderer {
         let index = ((frame % data.frames.count) + data.frames.count) % data.frames.count
         for placement in data.frameProps where placement.frame == index && placement.prop != "ball" {
             guard let image = library.prop(placement.prop) else { continue }
-            let sub = makeSpriteLayer(image: image, frame: propFrame(origin: placement.origin, size: CGSize(width: image.width, height: image.height), in: data))
+            let frame = grid.propFrame(origin: placement.origin, size: CGSize(width: image.width, height: image.height),
+                                       onSprite: restingSpriteFrame, flipped: isFlippedHorizontally)
+            let sub = makeSpriteLayer(image: image, frame: frame)
             emoteLayer.addSublayer(sub)
             framePropSublayers.append(sub)
         }
     }
 
-    /// Converts a prop's canvas position into view coordinates, mirroring with the cat.
-    private func propFrame(origin: CGPoint, size: CGSize, in data: SpriteAnimationData) -> CGRect {
-        let ppp = pointsPerPixel
-        let dx = origin.x - data.anchor.x
-        let topAboveGround = data.anchor.y - origin.y
-        let x = isFlippedHorizontally ? footPoint.x - (dx + size.width) * ppp : footPoint.x + dx * ppp
-        let y = footPoint.y + (topAboveGround - size.height) * ppp
-        return CGRect(x: x.rounded(), y: y.rounded(), width: size.width * ppp, height: size.height * ppp)
-    }
-
     private func makeSpriteLayer(image: CGImage, frame: CGRect) -> CALayer {
         let sub = CALayer()
+        sub.actions = ["position": NSNull(), "bounds": NSNull(), "opacity": NSNull()]
         sub.contents = image
         sub.frame = frame
-        sub.contentsScale = window?.backingScaleFactor ?? 2
-        sub.magnificationFilter = renderQuality == .smooth ? .linear : .nearest
-        sub.minificationFilter = renderQuality == .smooth ? .trilinear : .nearest
+        sub.contentsScale = backingScale
+        sub.configureForPixelArt(renderQuality)
         return sub
     }
 
-    /// Floats a prop sprite up from a point relative to the cat's head, then fades it.
+    /// Floats a prop sprite up from a point relative to the cat's head, then fades it. The motion is
+    /// a short sequence of whole-device-pixel positions (about 10 per second), like sprite animation.
     /// - Parameters:
-    ///   - offset: source pixels from the feet (x along facing direction, y up).
+    ///   - offset: source pixels from the feet (x along facing direction, y up) to the prop's centre.
     ///   - drift: total movement in source pixels (x along facing direction, y up).
-    func emitParticle(_ prop: String, offset: CGPoint, drift: CGVector, duration: TimeInterval, scale: (from: CGFloat, to: CGFloat) = (0.8, 1.1)) {
+    func emitParticle(_ prop: String, offset: CGPoint, drift: CGVector, duration: TimeInterval) {
         guard effectsEnabled, let image = library.prop(prop) else { return }
-        let ppp = pointsPerPixel
+        let grid = grid
         let sign: CGFloat = currentFacing == .right ? 1 : -1
-        let size = CGSize(width: CGFloat(image.width) * ppp, height: CGFloat(image.height) * ppp)
-        let center = CGPoint(x: footPoint.x + sign * offset.x * ppp, y: footPoint.y + lift + offset.y * ppp)
-        let sub = makeSpriteLayer(image: image, frame: CGRect(x: (center.x - size.width / 2).rounded(), y: (center.y - size.height / 2).rounded(), width: size.width, height: size.height))
+        let size = CGSize(width: grid.length(CGFloat(image.width)), height: grid.length(CGFloat(image.height)))
+        let foot = CGPoint(x: grid.snap(footPoint.x), y: grid.snap(footPoint.y) + grid.snap(lift))
+        let origin = CGPoint(x: grid.snap(foot.x + sign * offset.x * pointsPerPixel - size.width / 2),
+                             y: grid.snap(foot.y + offset.y * pointsPerPixel - size.height / 2))
+        let sub = makeSpriteLayer(image: image, frame: CGRect(origin: origin, size: size))
         sub.opacity = 0
         particleLayer.addSublayer(sub)
 
-        let move = CABasicAnimation(keyPath: "position")
-        move.fromValue = NSValue(point: sub.position)
-        move.toValue = NSValue(point: CGPoint(x: sub.position.x + sign * drift.dx * ppp, y: sub.position.y + drift.dy * ppp))
-        move.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        let steps = max(6, Int(duration * 10))
+        var positions: [NSValue] = []
+        var times: [NSNumber] = []
+        for i in 0...steps {
+            let t = Double(i) / Double(steps)
+            let eased = CGFloat(1 - pow(1 - t, 2))
+            // Snap the frame origin (not the centre) so odd-sized sprites stay on the grid too.
+            let x = grid.snap(origin.x + sign * drift.dx * pointsPerPixel * eased) + size.width / 2
+            let y = grid.snap(origin.y + drift.dy * pointsPerPixel * eased) + size.height / 2
+            positions.append(NSValue(point: CGPoint(x: x, y: y)))
+            times.append(NSNumber(value: t))
+        }
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.values = positions
+        move.keyTimes = times
+        move.calculationMode = .discrete
         let fade = CAKeyframeAnimation(keyPath: "opacity")
-        fade.values = [0, 1, 1, 0]
-        fade.keyTimes = [0, 0.15, 0.7, 1]
-        let grow = CABasicAnimation(keyPath: "transform.scale")
-        grow.fromValue = scale.from
-        grow.toValue = scale.to
+        fade.values = [0, 1, 1, 0.6, 0]
+        fade.keyTimes = [0, 0.08, 0.65, 0.85, 1]
+        fade.calculationMode = .discrete
         let group = CAAnimationGroup()
-        group.animations = [move, fade, grow]
+        group.animations = [move, fade]
         group.duration = duration
         group.isRemovedOnCompletion = false
         group.fillMode = .forwards
@@ -246,48 +282,54 @@ final class DesktopCatView: NSView, CatRenderer {
     private func updateShadow() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let ppp = pointsPerPixel
-        let width = 70 * ppp
-        let height = 10 * ppp
-        shadowLayer.bounds = CGRect(x: 0, y: 0, width: width, height: height)
-        let bodyShift: CGFloat = isFlippedHorizontally ? 18 : -18
-        shadowLayer.position = CGPoint(x: (footPoint.x + bodyShift * ppp).rounded(), y: (footPoint.y - 1 * ppp).rounded())
-        let visible = shadowEnabled && (lift > 1 || forceShadow)
-        let fade = max(0.35, 1 - lift / (90 * ppp))
-        shadowLayer.opacity = visible ? Float(fade) : 0
+        let grid = grid
+        let size = CGSize(width: grid.length(Self.shadowSize.width), height: grid.length(Self.shadowSize.height))
+        // Centre the shadow under the body rather than the head (the anchor).
+        let bodyShift = (isFlippedHorizontally ? 18 : -18) * pointsPerPixel
+        let x = grid.snap(grid.snap(footPoint.x) + bodyShift - size.width / 2)
+        let y = grid.snap(footPoint.y) - grid.length(5)
+        shadowLayer.frame = CGRect(x: x, y: y, width: size.width, height: size.height)
+        let lifted = grid.snap(lift)
+        let visible = shadowEnabled && (lifted > 0 || forceShadow)
+        shadowLayer.opacity = visible ? (lifted > grid.length(60) ? 0.6 : 1) : 0
         CATransaction.commit()
     }
 
-    /// A tiny pixel-art ellipse; scaled up with nearest-neighbour it matches the sprite style.
+    /// A blocky ellipse in art pixels (3-pixel steps), drawn at the same scale as the sprite.
     private static func makeShadowImage() -> CGImage? {
-        let width = 28, height = 4
+        let width = Int(shadowSize.width), height = Int(shadowSize.height)
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        let rows: [(Int, Int)] = [(6, 21), (2, 25), (2, 25), (6, 21)]
+                                      space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         context.setFillColor(CGColor(red: 0.12, green: 0.1, blue: 0.2, alpha: 0.22))
-        for (y, span) in rows.enumerated() {
-            context.fill(CGRect(x: span.0, y: y, width: span.1 - span.0 + 1, height: 1))
-        }
+        context.fill(CGRect(x: 9, y: 0, width: 46, height: 3))
+        context.fill(CGRect(x: 0, y: 3, width: 64, height: 3))
+        context.fill(CGRect(x: 9, y: 6, width: 46, height: 3))
         return context.makeImage()
     }
 
     // MARK: - Hit testing
 
     /// True when `point` (view coordinates) lands on the cat's visible pixels.
+    /// Uses the exact inverse of the layout, so it matches what is drawn.
     func isCatPixel(at point: CGPoint, tolerance: Int = 2) -> Bool {
-        guard let data = currentData else { return false }
-        let ppp = pointsPerPixel
-        var localX = (point.x - footPoint.x) / ppp
-        let localY = (point.y - footPoint.y - lift) / ppp
-        if isFlippedHorizontally { localX = -localX }
-        let px = Int((data.anchor.x + localX).rounded(.down))
-        let py = Int((data.anchor.y - localY).rounded(.down))
+        guard let data = currentData, spriteFrame.width > 0, spriteFrame.height > 0 else { return false }
+        var u = (point.x - spriteFrame.minX) / spriteFrame.width
+        let v = (spriteFrame.maxY - point.y) / spriteFrame.height
+        if isFlippedHorizontally { u = 1 - u }
+        let px = Int((u * data.size.width).rounded(.down))
+        let py = Int((v * data.size.height).rounded(.down))
         return data.frame(at: currentFrameIndex).mask.isOpaque(x: px, y: py, radius: tolerance)
     }
 
     /// The cat's visible bounding box in view coordinates.
     var catBounds: CGRect {
-        spriteLayer.frame
+        spriteFrame
+    }
+
+    /// Debug/verification: every on-screen layer that draws pixel art.
+    var pixelArtLayers: [CALayer] {
+        [spriteLayer, shadowLayer] + emoteSublayers + framePropSublayers + (particleLayer.sublayers ?? [])
     }
 
     // MARK: - Mouse

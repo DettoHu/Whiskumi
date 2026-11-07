@@ -37,8 +37,14 @@ xcodebuild test -scheme Whiskumi -destination 'platform=macOS' -only-testing:Whi
   hidden from ⌘-Tab / ⌘-\`, optionally on every Space and above full-screen apps.
 - Pixel-accurate click-through: clicks on transparent pixels fall through to whatever is below;
   only the cat itself is clickable.
-- Pixel-perfect rendering with nearest-neighbour filtering; the *Pixel Perfect* mode snaps the
-  size so each art pixel covers whole device pixels on Retina and non-Retina screens.
+- Crisp pixel art: nearest-neighbour sampling, no mipmaps, no edge antialiasing, and every sprite,
+  effect, shadow and the ball laid out on whole device pixels. Effects pop, bob and float in
+  whole-pixel steps instead of gliding or scaling. The menu bar preview draws one device pixel per
+  art pixel.
+- Default size ≈ 85 pt tall (about 170 Retina pixels): 4 device pixels for every 3 art pixels.
+  *Pixel Perfect* sizes snap to ratios that nearest-neighbour renders evenly (1:1, 4:3, 3:2, 5:3,
+  2:1, …) and never drop below 1:1; *Sharp* uses the exact size; *Smooth* uses plain bilinear
+  filtering (still no mipmaps). The size slider runs from 75 % to 300 %.
 - Window level: always on top, with other windows, or on the desktop behind all windows.
 - Remembers its position per display, survives displays being added, removed or rearranged,
   and keeps itself on-screen.
@@ -102,7 +108,7 @@ Whiskumi/                         repository root
 │   └── make_icons.py             app icon set + menu bar template icon
 └── Whiskumi/
     ├── Whiskumi.xcodeproj
-    ├── WhiskumiTests/            32 unit tests (Swift Testing)
+    ├── WhiskumiTests/            39 unit tests (Swift Testing)
     ├── WhiskumiUITests/          launch smoke test
     └── Whiskumi/
         ├── App/                  entry point, app delegate, composition root, main menu
@@ -162,15 +168,17 @@ files are present.
 
 ## Testing
 
-- `WhiskumiTests` covers needs decay and offline clamping, personality drift, the behaviour
+- `WhiskumiTests` covers pixel scaling (crisp ratios, device-pixel alignment of every sprite),
+  needs decay and offline clamping, personality drift, the behaviour
   distribution and its modifiers, petting gesture recognition, persistence (including corrupt
   files), sprite loading (every animation, frame sizes, anchors, alpha masks, clip frame indices)
   and settings persistence/presets.
 - A DEBUG-only end-to-end self-test drives the real app — petting, feeding, water, the ball,
   sleep, a simulated pick-up, every activity and cursor reaction, context menu, double-click
   bubble, menu bar popover, every settings tab, live setting changes, hide/show and saving — and
-  renders the app's own windows to PNG. It uses throwaway settings and a temporary save file, so it
-  never touches your cat:
+  renders the app's own windows to PNG. It also verifies that every animation, in both facings and
+  while lifted, lands on whole device pixels with nearest-neighbour filtering. It uses throwaway
+  settings and a temporary save file, so it never touches your cat:
 
   ```bash
   Whiskumi.app/Contents/MacOS/Whiskumi -WhiskumiSelfTest /tmp/whiskumi-selftest -WhiskumiSelfTestQuit YES

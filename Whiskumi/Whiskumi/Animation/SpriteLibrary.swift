@@ -231,6 +231,12 @@ nonisolated final class SpriteLibrary: @unchecked Sendable {
 
     func prop(_ name: String) -> CGImage? { props[name] }
 
+    /// Height of the sitting cat in art pixels (ears to paws), used to describe sizes in points.
+    var standingHeight: CGFloat {
+        guard let idle = animation(.idle) else { return 127 }
+        return idle.anchor.y - CGFloat(idle.frame(at: 0).topOpaqueRow)
+    }
+
     // MARK: - Loading helpers
 
     private static func indexResources(in bundle: Bundle) -> [String: URL] {
