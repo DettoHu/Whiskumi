@@ -1,0 +1,725 @@
+{
+ "animations": {
+  "angry": {
+   "anchor": [
+    98.8,
+    132
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "anger",
+     "x": 135,
+     "y": -23
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "angry_00"
+   ],
+   "size": [
+    146,
+    134
+   ]
+  },
+  "box": {
+   "anchor": [
+    110.9,
+    176
+   ],
+   "facing": "right",
+   "frames": [
+    "box_00",
+    "box_01",
+    "box_02",
+    "box_03"
+   ],
+   "size": [
+    159,
+    178
+   ]
+  },
+  "chase": {
+   "anchor": [
+    147.4,
+    118
+   ],
+   "facing": "right",
+   "frameProps": [
+    {
+     "frame": 0,
+     "prop": "puff",
+     "x": 183,
+     "y": 72
+    },
+    {
+     "frame": 1,
+     "prop": "puff",
+     "x": 184,
+     "y": 74
+    },
+    {
+     "frame": 2,
+     "prop": "puff",
+     "x": 181,
+     "y": 74
+    }
+   ],
+   "frames": [
+    "chase_00",
+    "chase_01",
+    "chase_02",
+    "chase_03"
+   ],
+   "size": [
+    185,
+    120
+   ]
+  },
+  "confused": {
+   "anchor": [
+    84.7,
+    140
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "questionTilted",
+     "x": 135,
+     "y": -27
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "confused_00"
+   ],
+   "size": [
+    135,
+    142
+   ]
+  },
+  "curious": {
+   "anchor": [
+    57.8,
+    126
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "question",
+     "x": 109,
+     "y": -13
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "curious_00"
+   ],
+   "size": [
+    111,
+    128
+   ]
+  },
+  "drink": {
+   "anchor": [
+    94.3,
+    129
+   ],
+   "facing": "right",
+   "frames": [
+    "drink_00",
+    "drink_01",
+    "drink_02",
+    "drink_03",
+    "drink_04"
+   ],
+   "size": [
+    129,
+    131
+   ]
+  },
+  "eat": {
+   "anchor": [
+    111.1,
+    132
+   ],
+   "facing": "right",
+   "frames": [
+    "eat_00",
+    "eat_01",
+    "eat_02",
+    "eat_03",
+    "eat_04"
+   ],
+   "size": [
+    166,
+    134
+   ]
+  },
+  "excited": {
+   "anchor": [
+    71.5,
+    146
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "sparkleLeft",
+     "x": 0,
+     "y": 9
+    },
+    {
+     "frame": 0,
+     "prop": "sparkleRight",
+     "x": 109,
+     "y": -8
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "excited_00"
+   ],
+   "size": [
+    130,
+    148
+   ]
+  },
+  "groom": {
+   "anchor": [
+    101.7,
+    138
+   ],
+   "facing": "right",
+   "frames": [
+    "groom_00",
+    "groom_01",
+    "groom_02",
+    "groom_03",
+    "groom_04",
+    "groom_05"
+   ],
+   "size": [
+    146,
+    140
+   ]
+  },
+  "happy": {
+   "anchor": [
+    78.2,
+    117
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "heartSmall",
+     "x": 113,
+     "y": -19
+    },
+    {
+     "frame": 0,
+     "prop": "heartSmall",
+     "x": 124,
+     "y": 4
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "happy_00"
+   ],
+   "size": [
+    119,
+    119
+   ]
+  },
+  "heart": {
+   "anchor": [
+    93.0,
+    144
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "heart",
+     "x": 8,
+     "y": 19
+    },
+    {
+     "frame": 0,
+     "prop": "heart",
+     "x": 143,
+     "y": -3
+    },
+    {
+     "frame": 0,
+     "prop": "heart",
+     "x": 152,
+     "y": 39
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "heart_00"
+   ],
+   "size": [
+    143,
+    146
+   ]
+  },
+  "idle": {
+   "anchor": [
+    103.7,
+    131
+   ],
+   "facing": "right",
+   "frames": [
+    "idle_00",
+    "idle_01",
+    "idle_02",
+    "idle_03",
+    "idle_04"
+   ],
+   "size": [
+    145,
+    133
+   ]
+  },
+  "jump": {
+   "anchor": [
+    97.9,
+    145
+   ],
+   "facing": "right",
+   "frames": [
+    "jump_00",
+    "jump_01",
+    "jump_02",
+    "jump_03"
+   ],
+   "size": [
+    133,
+    148
+   ]
+  },
+  "lieDown": {
+   "anchor": [
+    104.3,
+    100
+   ],
+   "facing": "right",
+   "frames": [
+    "lieDown_00",
+    "lieDown_01",
+    "lieDown_02"
+   ],
+   "size": [
+    144,
+    102
+   ]
+  },
+  "lookAround": {
+   "anchor": [
+    88.2,
+    140
+   ],
+   "facing": "right",
+   "frames": [
+    "lookAround_00",
+    "lookAround_01",
+    "lookAround_02",
+    "lookAround_03",
+    "lookAround_04"
+   ],
+   "size": [
+    131,
+    142
+   ]
+  },
+  "meow": {
+   "anchor": [
+    79.2,
+    123
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "meowMarks",
+     "x": 125,
+     "y": -3
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "meow_00"
+   ],
+   "size": [
+    121,
+    125
+   ]
+  },
+  "playBall": {
+   "anchor": [
+    132.9,
+    129
+   ],
+   "facing": "right",
+   "frameProps": [
+    {
+     "frame": 0,
+     "prop": "ball",
+     "x": 149,
+     "y": 94
+    },
+    {
+     "frame": 1,
+     "prop": "ball",
+     "x": 144,
+     "y": 93
+    },
+    {
+     "frame": 2,
+     "prop": "ball",
+     "x": 185,
+     "y": 78
+    },
+    {
+     "frame": 3,
+     "prop": "ball",
+     "x": 160,
+     "y": 87
+    }
+   ],
+   "frames": [
+    "playBall_00",
+    "playBall_01",
+    "playBall_02",
+    "playBall_03"
+   ],
+   "size": [
+    178,
+    131
+   ]
+  },
+  "playCursor": {
+   "anchor": [
+    116.0,
+    136
+   ],
+   "facing": "right",
+   "frames": [
+    "playCursor_00",
+    "playCursor_01",
+    "playCursor_02",
+    "playCursor_03"
+   ],
+   "size": [
+    158,
+    138
+   ]
+  },
+  "rollOver": {
+   "anchor": [
+    108.5,
+    125
+   ],
+   "facing": "right",
+   "frames": [
+    "rollOver_00",
+    "rollOver_01",
+    "rollOver_02",
+    "rollOver_03"
+   ],
+   "size": [
+    171,
+    127
+   ]
+  },
+  "sad": {
+   "anchor": [
+    96.2,
+    134
+   ],
+   "facing": "right",
+   "frames": [
+    "sad_00"
+   ],
+   "size": [
+    146,
+    136
+   ]
+  },
+  "sit": {
+   "anchor": [
+    88.6,
+    123
+   ],
+   "facing": "right",
+   "frames": [
+    "sit_00"
+   ],
+   "size": [
+    132,
+    125
+   ]
+  },
+  "sleep": {
+   "anchor": [
+    92.6,
+    71
+   ],
+   "emotes": [
+    {
+     "frame": 1,
+     "prop": "zSmall",
+     "x": 97,
+     "y": -18
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "sleep_00",
+    "sleep_01",
+    "sleep_02"
+   ],
+   "size": [
+    132,
+    73
+   ]
+  },
+  "startled": {
+   "anchor": [
+    141.3,
+    155
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "shock",
+     "x": 151,
+     "y": 13
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "startled_00",
+    "startled_01",
+    "startled_02"
+   ],
+   "size": [
+    184,
+    157
+   ]
+  },
+  "stretch": {
+   "anchor": [
+    55.1,
+    156
+   ],
+   "facing": "left",
+   "frames": [
+    "stretch_00",
+    "stretch_01",
+    "stretch_02"
+   ],
+   "size": [
+    184,
+    158
+   ]
+  },
+  "surprised": {
+   "anchor": [
+    98.5,
+    148
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "exclaim",
+     "x": 145,
+     "y": -13
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "surprised_00",
+    "surprised_01"
+   ],
+   "size": [
+    143,
+    150
+   ]
+  },
+  "think": {
+   "anchor": [
+    76.3,
+    142
+   ],
+   "emotes": [
+    {
+     "frame": 0,
+     "prop": "thought",
+     "x": 108,
+     "y": -33
+    }
+   ],
+   "facing": "right",
+   "frames": [
+    "think_00"
+   ],
+   "size": [
+    130,
+    144
+   ]
+  },
+  "walk": {
+   "anchor": [
+    117.5,
+    126
+   ],
+   "facing": "right",
+   "frames": [
+    "walk_00",
+    "walk_01",
+    "walk_02",
+    "walk_03",
+    "walk_04",
+    "walk_05"
+   ],
+   "size": [
+    156,
+    128
+   ]
+  },
+  "yawn": {
+   "anchor": [
+    97.4,
+    145
+   ],
+   "facing": "right",
+   "frames": [
+    "yawn_00",
+    "yawn_01",
+    "yawn_02",
+    "yawn_03"
+   ],
+   "size": [
+    147,
+    147
+   ]
+  }
+ },
+ "props": {
+  "anger": {
+   "image": "prop_anger",
+   "size": [
+    36,
+    40
+   ]
+  },
+  "ball": {
+   "image": "prop_ball",
+   "size": [
+    47,
+    37
+   ]
+  },
+  "exclaim": {
+   "image": "prop_exclaim",
+   "size": [
+    30,
+    57
+   ]
+  },
+  "heart": {
+   "image": "prop_heart",
+   "size": [
+    32,
+    30
+   ]
+  },
+  "heartSmall": {
+   "image": "prop_heartSmall",
+   "size": [
+    25,
+    24
+   ]
+  },
+  "meowMarks": {
+   "image": "prop_meowMarks",
+   "size": [
+    28,
+    35
+   ]
+  },
+  "puff": {
+   "image": "prop_puff",
+   "size": [
+    37,
+    40
+   ]
+  },
+  "question": {
+   "image": "prop_question",
+   "size": [
+    24,
+    37
+   ]
+  },
+  "questionTilted": {
+   "image": "prop_questionTilted",
+   "size": [
+    38,
+    59
+   ]
+  },
+  "shock": {
+   "image": "prop_shock",
+   "size": [
+    57,
+    42
+   ]
+  },
+  "sparkleLeft": {
+   "image": "prop_sparkleLeft",
+   "size": [
+    28,
+    38
+   ]
+  },
+  "sparkleRight": {
+   "image": "prop_sparkleRight",
+   "size": [
+    40,
+    42
+   ]
+  },
+  "thought": {
+   "image": "prop_thought",
+   "size": [
+    65,
+    65
+   ]
+  },
+  "zLarge": {
+   "image": "prop_zLarge",
+   "size": [
+    19,
+    22
+   ]
+  },
+  "zMedium": {
+   "image": "prop_zMedium",
+   "size": [
+    19,
+    20
+   ]
+  },
+  "zSmall": {
+   "image": "prop_zSmall",
+   "size": [
+    12,
+    12
+   ]
+  }
+ },
+ "version": 1
+}
