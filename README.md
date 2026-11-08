@@ -2,6 +2,10 @@
 
 A tiny white pixel-art cat that lives on your Mac desktop.
 
+<p align="center">
+  <img src="docs/demo.webp" width="720" alt="Whiskumi on a macOS desktop: sitting and blinking, getting petted with heart eyes, opening the double-click care bubble, eating, chasing and batting a yarn ball, running, and curling up for a nap">
+</p>
+
 Whiskumi sits, blinks, grooms, stretches, wanders along the bottom of your screen, naps in
 a cardboard box, chases a yarn ball you throw for it, and keeps an eye on your pointer.
 Click to pet it, drag to pick it up, double-click for quick care, right-click for everything else.
